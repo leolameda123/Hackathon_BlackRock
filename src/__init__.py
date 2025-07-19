@@ -50,23 +50,31 @@ def Validator(data):
     valid = []
     invalid = []
 
-    wage = data["wage"]
-    transactions = data["transactions"]
+    for entry in data["transactions"]:
 
-    for entry in transactions:
         temp = (entry["date"], entry["amount"], entry["ceiling"], entry["remanent"])
-        if DuplicateValidator(temp, hs) is not True:
+        
+        duplicate = DuplicateValidator(temp, hs)
+        if duplicate is not True:
+            entry["message"] = duplicate
             invalid.append(entry)
             continue
-        if ZeroValidator(entry) is not True:
+        
+        zeroAmount = ZeroValidator(entry)
+        if zeroAmount is not True:
             invalid.append(entry)
             continue
-        if PositiveValidator(entry) is not True:
+        
+        positiveAmount = PositiveValidator(entry)
+        if positiveAmount is not True:
             invalid.append(entry)
             continue
-        if RemanentValidator(entry) is not True:
+        
+        remanentCorrect = RemanentValidator(entry)
+        if remanentCorrect is not True:
             invalid.append(entry)
             continue
+
         hs.add(temp)
         valid.append(entry)
 
