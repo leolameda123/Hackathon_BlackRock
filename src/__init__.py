@@ -16,17 +16,14 @@ def create_app(test_config=None):
     def test():
         return "I'm Alive"
 
-    @app.get('/blackrock/challenge/v1/transactions:parse')
-    def ParseTransactions():
-        data = request.get_json()
-        GetRemanents(data)
-        return data
-        
-    return app
-
-    @app.get('/blackrock/challenge/v1/transactions:validator')
-    def ParseTransactions():
-        data = request.get_json()
+    @app.get('/blackrock/challenge/v1/transactions:<data>')
+    def ParseTransactions(data):
+        if data == "parse":
+            data = request.get_json()
+            GetRemanents(data)
+            return data
+        elif data == "validator":
+            data = request.get_json()
         return Validator(data)
         
     return app
@@ -58,20 +55,19 @@ def Validator(data):
 
     for entry in transactions:
         temp = (entry["date"], entry["amount"], entry["ceiling"], entry["remanent"])
-        hs.append(temp)
-        if DuplicateValidator != True:
+        if DuplicateValidator(temp, hs) is not True:
             invalid.append(entry)
             continue
-        if ZeroValidator != True:
+        if ZeroValidator(entry) is not True:
             invalid.append(entry)
             continue
-        if PositiveValidator != True:
+        if PositiveValidator(entry) is not True:
             invalid.append(entry)
             continue
-        if RemanentValidator != True:
+        if RemanentValidator(entry) is not True:
             invalid.append(entry)
             continue
-        
+        hs.add(temp)
         valid.append(entry)
 
     return {"valid": valid, "invalid": invalid} 
