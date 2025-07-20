@@ -22,36 +22,6 @@ def create_app(test_config=None):
     def State():
         return "I'm Alive"
 
-    @app.get('/blackrock/challenge/v1/transactions:<method>')
-    def Transactions(method):
-        try:
-            data = request.get_json()
-        except:
-            return "error in request"
-            
-        if method == "parse":
-
-            GetRemanents(data)
-            return data
-        
-        elif method == "validator":
-            res = TransactionValidatorResponse()
-            Validator(data, res)
-            return res.response
-        
-        elif method == "filter":
-            
-            fixedRanges = UniteFixedRanges(data["q"])
-            extraRanges = UniteExtraRanges(data["p"])
-            
-            res = TransactionValidatorResponse()
-            Validator(data, res, fixedRanges, extraRanges, True)
-
-            return res.response 
-
-        else:
-            return "error in request"# send error 300 i think XD
-
     @app.get('/blackrock/challenge/v1/returns:<method>')
     def Returns(method):
         try:
@@ -59,23 +29,24 @@ def create_app(test_config=None):
         except:
             return "error in request"
 
-        returnsRes = ReturnsResponse()
+        returnResponse = ReturnsResponse()
             
         fixedRanges = UniteFixedRanges(data["q"])
         extraRanges = UniteExtraRanges(data["p"])
 
         validatorResponse = TransactionValidatorResponse()
 
-        returnResponse.response[transactionsTotalAmount], 
-        resturnsResponse.response[transactionsTotalCeiling] = Validator(data, validatorResponse, fixedRanges, extraRanges, True)
+        returnResponse.response["transactionsTotalAmount"], returnResponse.response["transactionsTotalCeiling"] = Validator(data, validatorResponse, fixedRanges, extraRanges, True)
 
         interes = 7.11 if method == "ppr" else 14.49
 
-        CalculateInvestedData(resturnsResponse.response, method, interes, 
-                            data, validatorResponse["valid"])
+        CalculateInvestedData(returnResponse.response, method, interes, 
+                            data, validatorResponse.response["valid"])
         
-        return res.response
+        return returnResponse.response
 
+    from . import Transactions
+    app.register_blueprint(Transactions.bp)
 
     return app
 
@@ -137,7 +108,7 @@ def Validator(data, res, fixedRanges=None, extraRanges=None, updateRemanent = Fa
             continue
 
         transactionsTotalAmount += entry["amount"]
-        transactionsTotalCeiling += entry["ceiling"]
+        transactionsTotalCeiling += entry["remanent"]
 
         if updateRemanent:
 
@@ -245,11 +216,11 @@ def CalculateInvestedData(res, investmentType, interest, data, transactions):
     inflation = data["inflation"]
     P = res["investedAmount"]
     t = 65 - (userAge+1) if userAge < 65 else 5
-    Ai = P * (1 + (interest/100))**t
+    Ai = int((P * (1 + (interest/100))**t)*100)/100
 
     if investmentType == "ppr":
         wage = data["wage"]
-        payback = res["investedAmount"] if res["investedAmount"] < wage/100 else wage/100
+        payback = P if P < wage/100 else wage/100
         Ai += payback*t
 
     print(Ai)
