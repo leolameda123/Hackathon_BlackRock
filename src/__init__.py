@@ -24,5 +24,8 @@ def create_app(test_config=None):
     from .Blueprints import Returns
     app.register_blueprint(Returns.bp)
 
+    from .Blueprints import Performance
+    app.register_blueprint(Performance.bp)
+
     return app
 
