@@ -33,6 +33,7 @@ def UniteSavingByDatesRanges(ranges):
     savingsByDatesRanges = []
 
     for entry in ranges:
+        
         start = datetime.strptime(entry["start"], "%Y-%m-%d %H:%M")
         end = datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")
         savingsByDatesRanges.append((start, end))

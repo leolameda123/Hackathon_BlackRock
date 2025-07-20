@@ -5,8 +5,6 @@ import os
 from flask import Flask, request
 from datetime import datetime
 
-
-
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
@@ -17,10 +15,6 @@ def create_app(test_config=None):
         os.makedirs(app.instance_path)
     except OSError:
         pass
-
-    @app.route("/blackrock/challenge/v1/state")
-    def State():
-        return {"status": "I'm Alive"}
 
     @app.get('/blackrock/challenge/v1/returns:<method>')
     def Returns(method):
@@ -45,8 +39,12 @@ def create_app(test_config=None):
         
         return returnResponse.response
 
+    from . import State
+    app.register_blueprint(State.bp)
+
     from . import Transactions
     app.register_blueprint(Transactions.bp)
+    
 
     return app
 
