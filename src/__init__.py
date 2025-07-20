@@ -38,9 +38,12 @@ def create_app(test_config=None):
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
 
+            print(len(fixedRanges[0]), fixedRanges)
+            print(len(extraRanges[25]), extraRanges)
+
             UpdateRemanent(fixedRanges, extraRanges, data["transactions"])
 
-            return "ok"
+            return Validator(data)
 
         else:
             return "error in request"# send error 300 i think XD
@@ -153,17 +156,20 @@ def UpdateRemanent(fixedRanges, extraRanges, data):
         modifiers = [entry["remanent"], 0]
         entryDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
 
-        fixed = [x for x in fixedRanges for start, end in fixedRanges[x]
-                if start <= entryDate <= end]
+        fixed = [x for x in fixedRanges 
+                if any([True for start, end in fixedRanges[x]
+                if start <= entryDate <= end])]
 
-        extra = [x for x in extraRanges for start, end in extraRanges[x]
-                if start <= entryDate <= end]
+        extra = [x for x in extraRanges 
+                if any([True for start, end in extraRanges[x]
+                if start <= entryDate <= end])]
 
+        print(fixed, extra)
         if fixed:
             modifiers[0] = min(fixed)
         if extra:
             modifiers[1] = min(extra)
         
-        entry["remanent"] = sum(modifiers)
+        entry["updated_remanent"] = sum(modifiers)
     
     return
