@@ -46,7 +46,46 @@ def create_app(test_config=None):
         else:
             return "error in request"# send error 300 i think XD
 
+    @app.get('/blackrock/challenge/v1/returns:<method>')
+    def Transactions(method):
+        try:
+            data = request.get_json()
+        except:
+            return "error in request"
+
+        res = {
+            "transactionsTotalAmount": 0,
+            "transactionsTotalCeiling": 0,
+            "investedAmount": 0,
+            "profits": 0,
+            "savingsByDates":[]
+        }
+            
+        if method == "ppr":
+
+
+            fixedRanges = UniteFixedRanges(data["q"])
+            extraRanges = UniteExtraRanges(data["p"])
+
+            valid = Validator(data)["valid"]
+            UpdateRemanent(fixedRanges, extraRanges, valid)
+
+            
+
+            return res
+        
+        elif method == "ishares":
+
+            return Validator(data)
+        
+
+
+        else:
+            return "error in request"# send error 300 i think XD
+
     return app
+
+##########################
 
 def GetRemanents(data):
     for entry in data:
@@ -172,3 +211,13 @@ def UpdateRemanent(fixedRanges, extraRanges, data):
         entry["updated_remanent"] = sum(modifiers)
     
     return
+
+#################
+
+def CalculateInvestedData(res, investmentType, inflation, interes, data):
+    
+    for entry in data:
+        res["transactionsTotalAmount"] += entry["amount"]
+        res["transactionsTotalCeiling"] += entry["remanent"]
+        res["investedAmount"] += entry["updated_remanent"]
+
