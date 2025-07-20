@@ -48,7 +48,7 @@ def create_app(test_config=None):
             return "error in request"# send error 300 i think XD
 
     @app.get('/blackrock/challenge/v1/returns:<method>')
-    def Transactions(method):
+    def Returns(method):
         try:
             data = request.get_json()
         except:
@@ -64,6 +64,19 @@ def create_app(test_config=None):
             
         if method == "ppr":
 
+            fixedRanges = UniteFixedRanges(data["q"])
+            extraRanges = UniteExtraRanges(data["p"])
+
+            validTransactions = Validator(data)["valid"]
+            UpdateRemanent(fixedRanges, extraRanges, validTransactions)
+
+            res["profits"] = CalculateInvestedData(res, method, data["inflation"], 7.11, 
+                            data["age"], validTransactions, data["wage"])
+            
+            CalculateSavingsByDate(res, data["k"], validTransactions)
+            return res
+        
+        elif method == "ishares": 
 
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
@@ -71,17 +84,11 @@ def create_app(test_config=None):
             validTransactions = Validator(data)["valid"]
             UpdateRemanent(fixedRanges, extraRanges, validTransactions)
 
-            res["profit"] = CalculateInvestedData(res, data["inflation"], 7.11, data["age"], validTransactions)
+            res["profit"] = CalculateInvestedData(res, method, data["inflation"], 14.49, 
+                            data["age"], validTransactions)
             
             CalculateSavingsByDate(res, data["k"], validTransactions)
-
             return res
-        
-        elif method == "ishares":
-
-            return Validator(data)
-        
-
 
         else:
             return "error in request"# send error 300 i think XD
@@ -205,7 +212,6 @@ def UpdateRemanent(fixedRanges, extraRanges, data):
                 if any([True for start, end in extraRanges[x]
                 if start <= entryDate <= end])]
 
-        print(fixed, extra)
         if fixed:
             modifiers[0] = min(fixed)
         if extra:
@@ -217,24 +223,26 @@ def UpdateRemanent(fixedRanges, extraRanges, data):
 
 #################
 
-def CalculateInvestedData(res, investmentType, inflation, interes, userAge, data, wage=0):
+def CalculateInvestedData(res, investmentType, inflation, interest, userAge, data, wage=0):
     
     for entry in data:
         res["transactionsTotalAmount"] += entry["amount"]
         res["transactionsTotalCeiling"] += entry["remanent"]
         res["investedAmount"] += entry["updated_remanent"]
 
-    P = res["investedAmout"]
+    P = res["investedAmount"]
     t = 65 - (userAge+1) if userAge < 65 else 5
-    Ai = P * (1 + (r/100))**t
+    Ai = P * (1 + (interest/100))**t
 
     if investmentType == "ppr":
         payback = res["investedAmount"] if res["investedAmount"] < wage/100 else wage/100
         Ai += payback*t
 
+    print(Ai)
+
     Af = Ai/(1+ (inflation/100))**t
     
-    return Af
+    return int(Af*100)/100
 
 def CalculateSavingsByDate(res, data, transactions):
 
@@ -247,10 +255,10 @@ def CalculateSavingsByDate(res, data, transactions):
     amounts = [0]*len(savingsByDatesRanges)
     for transaction in transactions:
         transactionDate = datetime.strptime(transaction["date"], "%Y-%m-%d %H:%M")
-        for i, start, end in enumerate(savingsByDatesRanges):
+        for i, (start, end) in enumerate(savingsByDatesRanges):
             if start <= transactionDate <= end:
-                amont[i] += transaction["updated_remanent"]
+                amounts[i] += transaction["updated_remanent"]
     
     res["savingsByDates"] = data
-    for i, entry in enuemrate(data):
-        entry["amount"] = amount[i]
+    for i, entry in enumerate(data):
+        entry["amount"] = amounts[i]
