@@ -41,16 +41,15 @@ def init_app(app):
 
 def postData(elapsedTime, path):
     db = get_db()
-    db.execute("INSERT INTO timer (elapsedTime, lastEndpointUsed) VALUES (?,?)",
+    db.execute("INSERT INTO timer (id, elapsedTime, lastEndpointUsed, memory, threads) VALUES (1,?,?, 0, 0)",
     (elapsedTime, path),
     )
     db.commit()
 
-def updateData(elapsedTime, path):
-    print("commiting:", elapsedTime, path)
+def updateData(elapsedTime, path, memory, threads):
     db = get_db()
-    db.execute("UPDATE timer set elapsedTime = ?, lastEndpointUsed = ?",
-    (elapsedTime, path),
+    db.execute("UPDATE timer set elapsedTime = ?, lastEndpointUsed = ?, memory = ?, threads = ? WHERE id = 1",
+    (elapsedTime, path, memory, threads),
     )
     db.commit()
         

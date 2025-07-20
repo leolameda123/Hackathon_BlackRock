@@ -25,8 +25,6 @@ def CalculateInvestedData(res, investmentType, interest, data, transactions):
         payback = P if P < wage/100 else wage/100
         Ai += payback*t
 
-    print(Ai)
-
     Af = Ai/(1+ (inflation/100))**t
     res["profits"] = int(Af*100)/100
     res["savingsByDates"] = data["k"]
