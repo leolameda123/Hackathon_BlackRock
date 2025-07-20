@@ -39,10 +39,7 @@ def create_app(test_config=None):
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
 
-            valid = Validator(data)
-            UpdateRemanent(fixedRanges, extraRanges, valid["valid"])
-
-            return valid
+            return Validator(data, fixedRanges, extraRanges, True)
 
         else:
             return "error in request"# send error 300 i think XD
@@ -116,7 +113,7 @@ def CalculateRemanents(amount):
 
 ############################
 
-def Validator(data):
+def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
     hs = set()
     valid = []
     invalid = []
@@ -133,12 +130,6 @@ def Validator(data):
         
         hs.add(temp)
         
-        zeroAmount = ZeroValidator(entry)
-        if zeroAmount is not True:
-            entry["message"] = zeroAmount
-            invalid.append(entry)
-            continue
-        
         positiveAmount = PositiveValidator(entry)
         if positiveAmount is not True:
             entry["message"] = positiveAmount
@@ -151,9 +142,40 @@ def Validator(data):
             invalid.append(entry)
             continue
 
+        if updateRemanent:
+
+            entryDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
+            fixedModifier = None
+
+            if fixedRanges:
+
+                fixed = [x for x in fixedRanges 
+                        if any([True for start, end in fixedRanges[x]
+                        if start <= entryDate <= end])]
+                
+                if fixed:
+                    fixedModifier = min(fixed)
+                    entry["remanent"] = fixedModifier
+
+            if extraRanges and fixedModifier is None:
+                extra = [x for x in extraRanges 
+                        if any([True for start, end in extraRanges[x]
+                        if start <= entryDate <= end])]
+
+                if extra:
+                    extraModifier = min(extra)
+                    entry["remanent"] += extraModifier
+
+        zeroAmount = ZeroValidator(entry)
+        if zeroAmount is not True:
+            entry["message"] = zeroAmount
+            invalid.append(entry)
+            continue
+
         valid.append(entry)
 
-    return {"valid": valid, "invalid": invalid} 
+
+    return {"valid": valid, "invalid": invalid}
 
 def DuplicateValidator(entry, hs):
     return True if entry not in hs else "Duplicate Transaction"
@@ -165,7 +187,7 @@ def PositiveValidator(entry):
     return True if entry["amount"] > 0 else "Negative amounts are not allowed"
 
 def RemanentValidator(entry):
-    return True if (entry["ceiling"], entry["remanent"]) == CalculateRemanents(entry["amount"]) else "Error in remanent values"
+    return True if (entry["ceiling"], entry["remanent"]) == CalculateRemanents(entry["amount"]) else "Error in transaction values"
 
 ############################
 
@@ -196,30 +218,6 @@ def UniteExtraRanges(ranges):
             unitedExtraRanges[entry["extra"]] = [(datetime.strptime(entry["start"], "%Y-%m-%d %H:%M"), datetime.strptime(entry["end"], "%Y-%m-%d %H:%M"))]
     
     return unitedExtraRanges
-
-def UpdateRemanent(fixedRanges, extraRanges, data):
-
-    for entry in data:
-        
-        modifiers = [entry["remanent"], 0]
-        entryDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
-
-        fixed = [x for x in fixedRanges 
-                if any([True for start, end in fixedRanges[x]
-                if start <= entryDate <= end])]
-
-        extra = [x for x in extraRanges 
-                if any([True for start, end in extraRanges[x]
-                if start <= entryDate <= end])]
-
-        if fixed:
-            modifiers[0] = min(fixed)
-        if extra:
-            modifiers[1] = min(extra)
-        
-        entry["updated_remanent"] = sum(modifiers)
-    
-    return
 
 #################
 
