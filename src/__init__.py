@@ -1,6 +1,11 @@
+import sys
+sys.path.append("/DataModels")
+from retrunsResponse import ReturnsResponse
+
 import os
 from flask import Flask, request
 from datetime import datetime
+
 
 
 def create_app(test_config=None):
@@ -38,7 +43,7 @@ def create_app(test_config=None):
             
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
-
+            
             return Validator(data, fixedRanges, extraRanges, True)
 
         else:
@@ -64,27 +69,13 @@ def create_app(test_config=None):
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
 
-            validTransactions = Validator(data)["valid"]
-            UpdateRemanent(fixedRanges, extraRanges, validTransactions)
+            validTransactions = Validator(data, fixedRanges, extraRanges, True)["valid"]
 
-            res["profits"] = CalculateInvestedData(res, method, data["inflation"], 7.11, 
-                            data["age"], validTransactions, data["wage"])
+            interes = 7.11 if method == "ppr" else 14.49
+
+            CalculateInvestedData(res, method, interes, 
+                                data, validTransactions)
             
-            CalculateSavingsByDate(res, data["k"], validTransactions)
-            return res
-        
-        elif method == "ishares": 
-
-            fixedRanges = UniteFixedRanges(data["q"])
-            extraRanges = UniteExtraRanges(data["p"])
-
-            validTransactions = Validator(data)["valid"]
-            UpdateRemanent(fixedRanges, extraRanges, validTransactions)
-
-            res["profit"] = CalculateInvestedData(res, method, data["inflation"], 14.49, 
-                            data["age"], validTransactions)
-            
-            CalculateSavingsByDate(res, data["k"], validTransactions)
             return res
 
         else:
@@ -130,6 +121,12 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
         
         hs.add(temp)
         
+        zeroAmount = ZeroAmoutValidator(entry)
+        if zeroAmount is not True:
+            entry["message"] = zeroAmount
+            invalid.append(entry)
+            continue
+
         positiveAmount = PositiveValidator(entry)
         if positiveAmount is not True:
             entry["message"] = positiveAmount
@@ -145,32 +142,29 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
         if updateRemanent:
 
             entryDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
-            fixedModifier = None
 
-            if fixedRanges:
+            fixed = [x for x in fixedRanges 
+                    if any([True for start, end in fixedRanges[x]
+                    if start <= entryDate <= end])]
+            
+            if fixed:
 
-                fixed = [x for x in fixedRanges 
-                        if any([True for start, end in fixedRanges[x]
-                        if start <= entryDate <= end])]
-                
-                if fixed:
-                    fixedModifier = min(fixed)
-                    entry["remanent"] = fixedModifier
+                entry["updatedRemanent"] = min(fixed)
+                zeroAmount = ZeroRemanentValidator(entry)
 
-            if extraRanges and fixedModifier is None:
+                if zeroAmount is not True:
+                    entry["message"] = zeroAmount
+                    invalid.append(entry)
+                    continue
+
+            else:
                 extra = [x for x in extraRanges 
                         if any([True for start, end in extraRanges[x]
                         if start <= entryDate <= end])]
 
                 if extra:
                     extraModifier = min(extra)
-                    entry["remanent"] += extraModifier
-
-        zeroAmount = ZeroValidator(entry)
-        if zeroAmount is not True:
-            entry["message"] = zeroAmount
-            invalid.append(entry)
-            continue
+                    entry["updatedRemanent"] = entry["remanent"] + extraModifier
 
         valid.append(entry)
 
@@ -180,8 +174,11 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
 def DuplicateValidator(entry, hs):
     return True if entry not in hs else "Duplicate Transaction"
 
-def ZeroValidator(entry):
+def ZeroAmoutValidator(entry):
     return True if entry["amount"] != 0 else "Zero amounts are not allowed"
+
+def ZeroRemanentValidator(entry):
+    return True if entry["updatedRemanent"] != 0 else "Zero Remanents are not allowed"
 
 def PositiveValidator(entry):
     return True if entry["amount"] > 0 else "Negative amounts are not allowed"
@@ -219,44 +216,50 @@ def UniteExtraRanges(ranges):
     
     return unitedExtraRanges
 
+def UniteSavingByDatesRanges(ranges):
+
+    savingsByDatesRanges = []
+    for entry in ranges:
+        start = datetime.strptime(entry["start"], "%Y-%m-%d %H:%M")
+        end = datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")
+        savingsByDatesRanges.append((start, end))
+        entry["amount"] = 0
+
 #################
 
-def CalculateInvestedData(res, investmentType, inflation, interest, userAge, data, wage=0):
+def CalculateInvestedData(res, investmentType, interest, data, transactions):
     
-    for entry in data:
+    savingsByDatesRanges = UniteSavingByDatesRanges(data["k"])
+
+    for entry in transactions:
         res["transactionsTotalAmount"] += entry["amount"]
         res["transactionsTotalCeiling"] += entry["remanent"]
-        res["investedAmount"] += entry["updated_remanent"]
+        res["investedAmount"] += entry["updatedRemanent"]
+        CalculateSavingsByDate(savingsByDatesRanges, data["k"], entry)
 
+    userAge = data["age"]
+    inflation = data["inflation"]
     P = res["investedAmount"]
     t = 65 - (userAge+1) if userAge < 65 else 5
     Ai = P * (1 + (interest/100))**t
 
     if investmentType == "ppr":
+        wage = data["wage"]
         payback = res["investedAmount"] if res["investedAmount"] < wage/100 else wage/100
         Ai += payback*t
 
     print(Ai)
 
     Af = Ai/(1+ (inflation/100))**t
-    
-    return int(Af*100)/100
+    res["profit"] = int(Af*100)/100
 
-def CalculateSavingsByDate(res, data, transactions):
+    return 
 
-    savingsByDatesRanges = []
-    for entry in data:
-        start = datetime.strptime(entry["start"], "%Y-%m-%d %H:%M")
-        end = datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")
-        savingsByDatesRanges.append((start, end))
+def CalculateSavingsByDate(savingsByDatesRanges, savingsByDates, entry):
 
-    amounts = [0]*len(savingsByDatesRanges)
-    for transaction in transactions:
-        transactionDate = datetime.strptime(transaction["date"], "%Y-%m-%d %H:%M")
-        for i, (start, end) in enumerate(savingsByDatesRanges):
-            if start <= transactionDate <= end:
-                amounts[i] += transaction["updated_remanent"]
-    
-    res["savingsByDates"] = data
-    for i, entry in enumerate(data):
-        entry["amount"] = amounts[i]
+    transactionDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
+    for i, (start, end) in enumerate(savingsByDatesRanges):
+        if start <= transactionDate <= end:
+            savingsByDates[i]["amount"] += entry["updated_remanent"]
+
+    return
