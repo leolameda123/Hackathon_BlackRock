@@ -38,12 +38,10 @@ def create_app(test_config=None):
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
 
-            print(len(fixedRanges[0]), fixedRanges)
-            print(len(extraRanges[25]), extraRanges)
+            valid = Validator(data)
+            UpdateRemanent(fixedRanges, extraRanges, valid["valid"])
 
-            UpdateRemanent(fixedRanges, extraRanges, data["transactions"])
-
-            return Validator(data)
+            return valid
 
         else:
             return "error in request"# send error 300 i think XD
@@ -84,6 +82,8 @@ def Validator(data):
             invalid.append(entry)
             continue
         
+        hs.add(temp)
+        
         zeroAmount = ZeroValidator(entry)
         if zeroAmount is not True:
             entry["message"] = zeroAmount
@@ -102,7 +102,6 @@ def Validator(data):
             invalid.append(entry)
             continue
 
-        hs.add(temp)
         valid.append(entry)
 
     return {"valid": valid, "invalid": invalid} 
