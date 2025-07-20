@@ -1,5 +1,6 @@
 import os
 from flask import Flask, request
+from datetime import datetime
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
@@ -12,20 +13,40 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-    @app.route("/")
-    def test():
+    @app.route("/blackrock/challenge/v1/state")
+    def State():
         return "I'm Alive"
 
-    @app.get('/blackrock/challenge/v1/transactions:<data>')
-    def ParseTransactions(data):
-        if data == "parse":
+    @app.get('/blackrock/challenge/v1/transactions:<method>')
+    def Transactions(method):
+        try:
             data = request.get_json()
+        except:
+            return "error in request"
+            
+        if method == "parse":
+
             GetRemanents(data)
             return data
-        elif data == "validator":
-            data = request.get_json()
-        return Validator(data)
         
+        elif method == "validator":
+
+            return Validator(data)
+        
+        elif method == "filter":
+            
+            fixedRanges = UniteFixedRanges(data["q"])
+
+            extraRanges = UniteExtraRanges(data["p"])
+
+            print(fixedRanges)
+            print(extraRanges)
+
+            return "ok"
+
+        else:
+            return "error in request"# send error 300 i think XD
+
     return app
 
 def GetRemanents(data):
@@ -45,6 +66,8 @@ def CalculateRemanents(amount):
     remanent = int((ceil - amount)*100)/100
     return (float(ceil), float(remanent))
 
+############################
+
 def Validator(data):
     hs = set()
     valid = []
@@ -62,16 +85,19 @@ def Validator(data):
         
         zeroAmount = ZeroValidator(entry)
         if zeroAmount is not True:
+            entry["message"] = zeroAmount
             invalid.append(entry)
             continue
         
         positiveAmount = PositiveValidator(entry)
         if positiveAmount is not True:
+            entry["message"] = positiveAmount
             invalid.append(entry)
             continue
         
         remanentCorrect = RemanentValidator(entry)
         if remanentCorrect is not True:
+            entry["message"] = remanentCorrect
             invalid.append(entry)
             continue
 
@@ -79,8 +105,6 @@ def Validator(data):
         valid.append(entry)
 
     return {"valid": valid, "invalid": invalid} 
-
-
 
 def DuplicateValidator(entry, hs):
     return True if entry not in hs else "Duplicate Transaction"
@@ -93,3 +117,33 @@ def PositiveValidator(entry):
 
 def RemanentValidator(entry):
     return True if (entry["ceiling"], entry["remanent"]) == CalculateRemanents(entry["amount"]) else "Error in remanent values"
+
+############################
+
+def UniteFixedRanges(ranges):
+
+    unitedFixedRanges = dict()
+
+    for entry in ranges:
+        
+        if entry["fixed"] in unitedFixedRanges:
+            unitedFixedRanges[entry["fixed"]].append((datetime.strptime(entry["start"], "%Y-%m-%d %H:%M"), datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")))
+        
+        else:
+            unitedFixedRanges[entry["fixed"]] = [(datetime.strptime(entry["start"], "%Y-%m-%d %H:%M"), datetime.strptime(entry["end"], "%Y-%m-%d %H:%M"))]
+    
+    return unitedFixedRanges
+
+def UniteExtraRanges(ranges):
+
+    unitedExtraRanges = dict()
+
+    for entry in ranges:
+        
+        if entry["extra"] in unitedExtraRanges:
+            unitedExtraRanges[entry["extra"]].append((datetime.strptime(entry["start"], "%Y-%m-%d %H:%M"), datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")))
+        
+        else:
+            unitedExtraRanges[entry["extra"]] = [(datetime.strptime(entry["start"], "%Y-%m-%d %H:%M"), datetime.strptime(entry["end"], "%Y-%m-%d %H:%M"))]
+    
+    return unitedExtraRanges
