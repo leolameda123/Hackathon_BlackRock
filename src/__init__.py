@@ -2,6 +2,7 @@ import os
 from flask import Flask, request
 from datetime import datetime
 
+
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
@@ -67,10 +68,12 @@ def create_app(test_config=None):
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
 
-            valid = Validator(data)["valid"]
-            UpdateRemanent(fixedRanges, extraRanges, valid)
+            validTransactions = Validator(data)["valid"]
+            UpdateRemanent(fixedRanges, extraRanges, validTransactions)
 
+            res["profit"] = CalculateInvestedData(res, data["inflation"], 7.11, data["age"], validTransactions)
             
+            CalculateSavingsByDate(res, data["k"], validTransactions)
 
             return res
         
@@ -214,10 +217,40 @@ def UpdateRemanent(fixedRanges, extraRanges, data):
 
 #################
 
-def CalculateInvestedData(res, investmentType, inflation, interes, data):
+def CalculateInvestedData(res, investmentType, inflation, interes, userAge, data, wage=0):
     
     for entry in data:
         res["transactionsTotalAmount"] += entry["amount"]
         res["transactionsTotalCeiling"] += entry["remanent"]
         res["investedAmount"] += entry["updated_remanent"]
 
+    P = res["investedAmout"]
+    t = 65 - (userAge+1) if userAge < 65 else 5
+    Ai = P * (1 + (r/100))**t
+
+    if investmentType == "ppr":
+        payback = res["investedAmount"] if res["investedAmount"] < wage/100 else wage/100
+        Ai += payback*t
+
+    Af = Ai/(1+ (inflation/100))**t
+    
+    return Af
+
+def CalculateSavingsByDate(res, data, transactions):
+
+    savingsByDatesRanges = []
+    for entry in data:
+        start = datetime.strptime(entry["start"], "%Y-%m-%d %H:%M")
+        end = datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")
+        savingsByDatesRanges.append((start, end))
+
+    amounts = [0]*len(savingsByDatesRanges)
+    for transaction in transactions:
+        transactionDate = datetime.strptime(transaction["date"], "%Y-%m-%d %H:%M")
+        for i, start, end in enumerate(savingsByDatesRanges):
+            if start <= transactionDate <= end:
+                amont[i] += transaction["updated_remanent"]
+    
+    res["savingsByDates"] = data
+    for i, entry in enuemrate(data):
+        entry["amount"] = amount[i]
