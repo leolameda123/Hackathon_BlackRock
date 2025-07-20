@@ -1,6 +1,5 @@
-import sys
-sys.path.append("/DataModels")
-from retrunsResponse import ReturnsResponse
+from src.DataModels.ReturnsResponse import ReturnsResponse
+from src.DataModels.TransactionValidatorResponse import TransactionValidatorResponse
 
 import os
 from flask import Flask, request
@@ -36,15 +35,19 @@ def create_app(test_config=None):
             return data
         
         elif method == "validator":
-
-            return Validator(data)
+            res = TransactionValidatorResponse()
+            Validator(data, res)
+            return res.response
         
         elif method == "filter":
             
             fixedRanges = UniteFixedRanges(data["q"])
             extraRanges = UniteExtraRanges(data["p"])
             
-            return Validator(data, fixedRanges, extraRanges, True)
+            res = TransactionValidatorResponse()
+            Validator(data, res, fixedRanges, extraRanges, True)
+
+            return res.response 
 
         else:
             return "error in request"# send error 300 i think XD
@@ -56,30 +59,23 @@ def create_app(test_config=None):
         except:
             return "error in request"
 
-        res = {
-            "transactionsTotalAmount": 0,
-            "transactionsTotalCeiling": 0,
-            "investedAmount": 0,
-            "profits": 0,
-            "savingsByDates":[]
-        }
+        returnsRes = ReturnsResponse()
             
-        if method == "ppr":
+        fixedRanges = UniteFixedRanges(data["q"])
+        extraRanges = UniteExtraRanges(data["p"])
 
-            fixedRanges = UniteFixedRanges(data["q"])
-            extraRanges = UniteExtraRanges(data["p"])
+        validatorResponse = TransactionValidatorResponse()
 
-            validTransactions = Validator(data, fixedRanges, extraRanges, True)["valid"]
+        returnResponse.response[transactionsTotalAmount], 
+        resturnsResponse.response[transactionsTotalCeiling] = Validator(data, validatorResponse, fixedRanges, extraRanges, True)
 
-            interes = 7.11 if method == "ppr" else 14.49
+        interes = 7.11 if method == "ppr" else 14.49
 
-            CalculateInvestedData(res, method, interes, 
-                                data, validTransactions)
-            
-            return res
+        CalculateInvestedData(resturnsResponse.response, method, interes, 
+                            data, validatorResponse["valid"])
+        
+        return res.response
 
-        else:
-            return "error in request"# send error 300 i think XD
 
     return app
 
@@ -104,10 +100,11 @@ def CalculateRemanents(amount):
 
 ############################
 
-def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
+def Validator(data, res, fixedRanges=None, extraRanges=None, updateRemanent = False):
+
     hs = set()
-    valid = []
-    invalid = []
+    transactionsTotalAmount = 0
+    transactionsTotalCeiling = 0
 
     for entry in data["transactions"]:
 
@@ -116,7 +113,7 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
         duplicate = DuplicateValidator(temp, hs)
         if duplicate is not True:
             entry["message"] = duplicate
-            invalid.append(entry)
+            res.response["invalid"].append(entry)
             continue
         
         hs.add(temp)
@@ -124,20 +121,23 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
         zeroAmount = ZeroAmoutValidator(entry)
         if zeroAmount is not True:
             entry["message"] = zeroAmount
-            invalid.append(entry)
+            res.response["invalid"].append(entry)
             continue
 
         positiveAmount = PositiveValidator(entry)
         if positiveAmount is not True:
             entry["message"] = positiveAmount
-            invalid.append(entry)
+            res.response["invalid"].append(entry)
             continue
         
         remanentCorrect = RemanentValidator(entry)
         if remanentCorrect is not True:
             entry["message"] = remanentCorrect
-            invalid.append(entry)
+            res.response["invalid"].append(entry)
             continue
+
+        transactionsTotalAmount += entry["amount"]
+        transactionsTotalCeiling += entry["ceiling"]
 
         if updateRemanent:
 
@@ -147,6 +147,10 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
                     if any([True for start, end in fixedRanges[x]
                     if start <= entryDate <= end])]
             
+            extra = [x for x in extraRanges 
+                        if any([True for start, end in extraRanges[x]
+                        if start <= entryDate <= end])]
+            
             if fixed:
 
                 entry["updatedRemanent"] = min(fixed)
@@ -154,22 +158,21 @@ def Validator(data, fixedRanges=None, extraRanges=None, updateRemanent = False):
 
                 if zeroAmount is not True:
                     entry["message"] = zeroAmount
-                    invalid.append(entry)
+                    res.response["invalid"].append(entry)
                     continue
 
-            else:
-                extra = [x for x in extraRanges 
-                        if any([True for start, end in extraRanges[x]
-                        if start <= entryDate <= end])]
+            elif extra:
 
                 if extra:
-                    extraModifier = min(extra)
-                    entry["updatedRemanent"] = entry["remanent"] + extraModifier
+                    entry["updatedRemanent"] = entry["remanent"] + min(extra)
+                
+            else:
+                entry["updatedRemanent"] = entry["remanent"]
 
-        valid.append(entry)
+        res.response["valid"].append(entry)
 
 
-    return {"valid": valid, "invalid": invalid}
+    return (transactionsTotalAmount, transactionsTotalCeiling)
 
 def DuplicateValidator(entry, hs):
     return True if entry not in hs else "Duplicate Transaction"
@@ -219,21 +222,22 @@ def UniteExtraRanges(ranges):
 def UniteSavingByDatesRanges(ranges):
 
     savingsByDatesRanges = []
+
     for entry in ranges:
         start = datetime.strptime(entry["start"], "%Y-%m-%d %H:%M")
         end = datetime.strptime(entry["end"], "%Y-%m-%d %H:%M")
         savingsByDatesRanges.append((start, end))
         entry["amount"] = 0
 
+    return savingsByDatesRanges
+
 #################
 
 def CalculateInvestedData(res, investmentType, interest, data, transactions):
-    
-    savingsByDatesRanges = UniteSavingByDatesRanges(data["k"])
 
+    savingsByDatesRanges = UniteSavingByDatesRanges(data["k"])
+    
     for entry in transactions:
-        res["transactionsTotalAmount"] += entry["amount"]
-        res["transactionsTotalCeiling"] += entry["remanent"]
         res["investedAmount"] += entry["updatedRemanent"]
         CalculateSavingsByDate(savingsByDatesRanges, data["k"], entry)
 
@@ -251,7 +255,8 @@ def CalculateInvestedData(res, investmentType, interest, data, transactions):
     print(Ai)
 
     Af = Ai/(1+ (inflation/100))**t
-    res["profit"] = int(Af*100)/100
+    res["profits"] = int(Af*100)/100
+    res["savingsByDates"] = data["k"]
 
     return 
 
@@ -260,6 +265,6 @@ def CalculateSavingsByDate(savingsByDatesRanges, savingsByDates, entry):
     transactionDate = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M")
     for i, (start, end) in enumerate(savingsByDatesRanges):
         if start <= transactionDate <= end:
-            savingsByDates[i]["amount"] += entry["updated_remanent"]
+            savingsByDates[i]["amount"] += entry["updatedRemanent"]
 
     return
