@@ -20,7 +20,7 @@ def create_app(test_config=None):
 
     @app.route("/blackrock/challenge/v1/state")
     def State():
-        return "I'm Alive"
+        return {"status": "I'm Alive"}
 
     @app.get('/blackrock/challenge/v1/returns:<method>')
     def Returns(method):

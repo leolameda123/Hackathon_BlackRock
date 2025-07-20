@@ -1,4 +1,5 @@
 from datetime import datetime
+from src.Calculations.Calculations import CalculateRemanents
 
 def Validator(data, res, fixedRanges=None, extraRanges=None, updateRemanent = False):
 
@@ -70,7 +71,6 @@ def Validator(data, res, fixedRanges=None, extraRanges=None, updateRemanent = Fa
                 entry["updatedRemanent"] = entry["remanent"]
 
         res.response["valid"].append(entry)
-
 
     return (transactionsTotalAmount, transactionsTotalCeiling)
 

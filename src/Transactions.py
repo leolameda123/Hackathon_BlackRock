@@ -1,8 +1,7 @@
-from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for
-)
+from flask import (Blueprint, flash, g, redirect, render_template, request, session, url_for)
 from src.DataModels.TransactionValidatorResponse import TransactionValidatorResponse
 from src.CoreLogic.Validator import Validator
+from src.CoreLogic.Remanents import GetRemanents
 from src.DataManipulation.DataUnion import UniteFixedRanges, UniteExtraRanges
 
 bp = Blueprint('transactions', __name__, url_prefix='/blackrock/challenge/v1')
@@ -21,7 +20,7 @@ def Transactions(method):
     
     elif method == "validator":
         validatorResponse = TransactionValidatorResponse()
-        Validator(data, res)
+        Validator(data, validatorResponse)
         return validatorResponse.response
     
     elif method == "filter":
@@ -30,7 +29,7 @@ def Transactions(method):
         extraRanges = UniteExtraRanges(data["p"])
         
         validatorResponse = TransactionValidatorResponse()
-        Validator(data, res, fixedRanges, extraRanges, True)
+        Validator(data, validatorResponse, fixedRanges, extraRanges, True)
 
         return validatorResponse.response 
 
