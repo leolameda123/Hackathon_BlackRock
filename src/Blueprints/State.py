@@ -1,4 +1,4 @@
-from flask import (Blueprint)
+from flask import (Blueprint, g)
 
 bp = Blueprint("state", __name__, url_prefix="/blackrock/challenge/v1")
 
